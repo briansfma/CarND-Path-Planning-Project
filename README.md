@@ -46,7 +46,7 @@ Launch the simulator `term3_sim.exe`. Select "Project 1: Path Planning" from the
 Connected!!!
 ```
 
-Click the "Start" button and the simulator will run.
+The simulator will automatically start.
 
 ## Details
 
