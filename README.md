@@ -1,73 +1,94 @@
-# CarND-Path-Planning-Project
-Self-Driving Car Engineer Nanodegree Program
-   
-### Simulator.
-You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
+# Path Planning for Autonomous Highway Driving
+Udacity Self-Driving Car Engineer Nanodegree Program
 
-To run the simulator on Mac/Linux, first make the binary file executable with the following command:
-```shell
-sudo chmod u+x {simulator_file_name}
-```
+In this project our goal is to safely navigate around a virtual highway with other traffic that is driving +/-10 MPH of the 50 MPH speed limit. We are provided the car's localization and sensor fusion data, and a sparse map list of waypoints around the highway. "Our" ego car needs to travel as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible - but other cars will try to change lanes too. The ego car must avoid hitting other cars at all cost, and drive within the marked road lanes unless switching from one lane to another. The car must make at least one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Total acceleration must remain within 10 m/s^2 and jerk within 10 m/s^3. The main focus of this project is to elegantly combine current state and incoming information into a smooth path for the car to follow.
 
-### Goals
-In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
-
-#### The map of the highway is in data/highway_map.txt
-Each waypoint in the list contains  [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
-
-The highway's waypoints loop around so the frenet s value, distance along the road, goes from 0 to 6945.554.
+[//]: # (Image References)
+[image1]: Progress1.jpg "Runtime Example"
 
 ## Basic Build Instructions
 
-1. Clone this repo.
-2. Make a build directory: `mkdir build && cd build`
-3. Compile: `cmake .. && make`
-4. Run it: `./path_planning`.
+Running the code requires connecting to the Udacity CarND Term 3 Simulator, which can be downloaded [here](https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).
 
-Here is the data provided from the Simulator to the C++ Program
+This project requires [uWebSocketIO](https://github.com/uWebSockets/uWebSockets) for either Linux or Mac systems. For windows you can use either Docker, VMware, or even [Windows 10 Bash on Ubuntu](https://www.howtogeek.com/249966/how-to-install-and-use-the-linux-bash-shell-on-windows-10/) to install uWebSocketIO. Please see the uWebSocketIO Starter Guide page in the classroom within the EKF Project lesson for the required version and installation scripts.
 
-#### Main car's localization Data (No Noise)
+Once the install for uWebSocketIO is complete, the main program can be built and run by executing in the Linux bash:
 
-["x"] The car's x position in map coordinates
+```
+$ git clone https://github.com/briansfma/CarND-Path-Planning-Project
+$ cd CarND-Path-Planning-Project
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+$ ./path_planning
+```
 
-["y"] The car's y position in map coordinates
+## Running the Program
 
-["s"] The car's s position in frenet coordinates
+If it is not running already, launch the project.
 
-["d"] The car's d position in frenet coordinates
+```
+$ cd CarND-Path-Planning-Project
+$ cd build
+$ ./path_planning
+```
 
-["yaw"] The car's yaw angle in the map
+When `path_planning` has initialized successfully, it will output to terminal
 
-["speed"] The car's speed in MPH
+```
+Listening to port 4567
+```
 
-#### Previous path data given to the Planner
+Launch the simulator `term3_sim.exe`. Select "Project 1: Path Planning" from the menu. Upon successful connection to the simulator, `path_planning` will output to terminal
 
-//Note: Return the previous list but with processed points removed, can be a nice tool to show how far along
-the path has processed since last time. 
+```
+Connected!!!
+```
 
-["previous_path_x"] The previous list of x points previously given to the simulator
-
-["previous_path_y"] The previous list of y points previously given to the simulator
-
-#### Previous path's end s and d values 
-
-["end_path_s"] The previous list's last point's frenet s value
-
-["end_path_d"] The previous list's last point's frenet d value
-
-#### Sensor Fusion Data, a list of all other car's attributes on the same side of the road. (No Noise)
-
-["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
+Click the "Start" button and the simulator will run.
 
 ## Details
 
-1. The car uses a perfect controller and will visit every (x,y) point it recieves in the list every .02 seconds. The units for the (x,y) points are in meters and the spacing of the points determines the speed of the car. The vector going from a point to the next point in the list dictates the angle of the car. Acceleration both in the tangential and normal directions is measured along with the jerk, the rate of change of total Acceleration. The (x,y) point paths that the planner recieves should not have a total acceleration that goes over 10 m/s^2, also the jerk should not go over 50 m/s^3. (NOTE: As this is BETA, these requirements might change. Also currently jerk is over a .02 second interval, it would probably be better to average total acceleration over 1 second and measure jerk from that.
+The ego car uses the following model to continuously decide its next steps of travel:
 
-2. There will be some latency between the simulator running and the path planner returning a path, with optimized code usually its not very long maybe just 1-3 time steps. During this delay the simulator will continue using points that it was last given, because of this its a good idea to store the last points you have used so you can have a smooth transition. previous_path_x, and previous_path_y can be helpful for this transition since they show the last points given to the simulator controller with the processed points already removed. You would either return a path that extends this previous path or make sure to create a new path that has a smooth transition with this last path.
+1. Take in sensor fusion data.
 
-## Tips
+2. Make sense of the objects reported by sensor fusion. Prioritize the positions and speeds of only the closest objects ahead of us and the closest objects behind/beside us. We ignore objects that are too far (>150m) ahead of us or behind us, as the situation could change long before we get close to these objects.
 
-A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
+3. Calculate what lane the car currently occupies. Default the lane choice here.
+
+4. Calculate our proximity to anything immediately in front of us, and adjust speed accordingly to avoid collision. If there is nothing ahead of us, we default to the fastest legal speed possible.
+
+5. If objects ahead of us are within "caring distance" (<40m ahead of us), we will weigh the desirability of each lane based on the position and speed of the objects ahead of us in each lane. The weight is calculated by three factors:
+    - A linear combination of 1.5X the object's speed and 1X the object's distance ahead
+    - If the lane is blocked by an object beside us, the weight is divided by 50X
+    - If the lane is the ego car's current lane, the weight is boosted 5%
+
+6. The lane with the largest relative weight is chosen as the target lane choice. However, if the optimal lane is more than 1 lane away from the ego car's current lane, we will only mark the next lane over as the target, in order to not make risky/jerky movements.
+
+7. If a lane change is signaled, we must assess the gaps in traffic to position the car away from any awkward situations. Four logical options were identified that the ego car can choose from in order to make, or set itself up for, the lane change.
+    - If the obstruction in the current lane is far enough ahead of an obstruction in the next lane, AND there is enough space behind the obstruction in the next lane, then the ego car will take the lane change early to be safe.
+    - If the obstruction in the current lane is far enough ahead of an obstruction in the next lane, BUT there is NOT enough space behind the obstruction in the next lane, then the ego car will "shoot the gap", waiting until it passes the obstruction in the next lane before changing lanes.
+    - If the obstruction in the current lane is NOT far enough ahead of an obstruction in the next lane, AND there is NOT enough space behind the obstruction in the next lane, then the ego car will slow down until there is enough space to change lanes behind the obstruction in the next lane.
+    - If the obstruction in the current lane is NOT far enough ahead of an obstruction in the next lane, BUT there is enough space behind the obstruction in the next lane, then the ego car will take the lane change.
+
+8. Lastly, before finalizing its decision, the ego car will check one more time that changing lanes will not run itself into an object in the target lane. If there is an obstruction still, the ego car will abort its lane change.
+
+9. With the decision (required speed, lane keep/switch) made, we adjust the target speed based on what the ego car can actually achieve without breaking acceleration limits or physics.
+
+10. We use the `spline.h` library ([link](http://kluge.in-chemnitz.de/opensource/spline/)) to draw smooth path lines for the ego car to follow. The spline is drawn with 5 anchor points:
+    - The upcoming two points from the car's last path it was following (if this doesn't exist, we generate substitutes using the car's position and heading)
+    - Three points in the car's target lane, 40m, 75m, and 90m ahead of the car's current position
+
+11. Based on the target speed of the car, path points are calculated evenly along the path spline, and packaged into a JSON object and sent to the simulator.
+
+
+## Expected Behavior/Known Bugs
+
+The implementation in this project is believed to work well (the car is aggressive, but safe making lane changes in order to maximize speed without causing incidents), easily driving for an hour straight, navigating tricky traffic jams, etc. without incident. HOWEVER, at a certain location along the highway lap, the Term3 Simulator sometimes slows down, and when this occurs, the "Violated Speed Limit!" error can randomly occur despite the ego car never traveling above 50 MPH. This seems to be avoidable (at least, on the machine this project was written on) by manually setting the camera view in the simulator to overhead. As long as the simulator does not slow down, one could expect the ego car to perform like such:
+
+![alt text][image1]
 
 ---
 
@@ -92,54 +113,5 @@ A really helpful resource for doing this project and creating smooth trajectorie
     git checkout e94b6e1
     ```
 
-## Editor Settings
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
-
-## Project Instructions and Rubric
-
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
-
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
 
