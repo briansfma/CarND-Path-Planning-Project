@@ -4,7 +4,7 @@ Udacity Self-Driving Car Engineer Nanodegree Program
 In this project our goal is to safely navigate around a virtual highway with other traffic that is driving +/-10 MPH of the 50 MPH speed limit. We are provided the car's localization and sensor fusion data, and a sparse map list of waypoints around the highway. "Our" ego car needs to travel as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible - but other cars will try to change lanes too. The ego car must avoid hitting other cars at all cost, and drive within the marked road lanes unless switching from one lane to another. The car must make at least one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Total acceleration must remain within 10 m/s^2 and jerk within 10 m/s^3. The main focus of this project is to elegantly combine current state and incoming information into a smooth path for the car to follow.
 
 [//]: # (Image References)
-[image1]: Progress1.jpg "Runtime Example"
+[image1]: Progress2.jpg "Runtime Example"
 
 ## Basic Build Instructions
 
@@ -84,9 +84,11 @@ The ego car uses the following model to continuously decide its next steps of tr
 11. Based on the target speed of the car, path points are calculated evenly along the path spline, and packaged into a JSON object and sent to the simulator.
 
 
-## Expected Behavior/Known Bugs
+## Expected Behavior/Known Issues
 
-The implementation in this project is believed to work well (the car is aggressive, but safe making lane changes in order to maximize speed without causing incidents), easily driving for an hour straight, navigating tricky traffic jams, etc. without incident. HOWEVER, at a certain location along the highway lap, the Term3 Simulator sometimes slows down, and when this occurs, the "Violated Speed Limit!" error can randomly occur despite the ego car never traveling above 50 MPH. This seems to be avoidable (at least, on the machine this project was written on) by manually setting the camera view in the simulator to overhead. As long as the simulator does not slow down, one could expect the ego car to perform like such:
+The implementation in this project is believed to work well (the car is aggressive, but safe making lane changes in order to maximize speed without causing incidents), navigating tricky traffic patterns without incident. HOWEVER, it cannot compensate for bad behavior from other cars. If the ego car is side-swiped or rear-ended by another car, there is no accident-dodging logic in the code to brake/steer/accelerate the car away - it will simply happen.
+
+As long as those real-life accident situations do not occur, the ego car is happy to drive along for hours.
 
 ![alt text][image1]
 
