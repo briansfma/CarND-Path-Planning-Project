@@ -106,29 +106,36 @@ int main() {
            * Step 1: Find and evaluate obstacles in our path to choose the
            *   fastest lane to travel in.
            */
+          car_speed /= 2.24; 		// stupid unit conversion
 
           // Initialize car position and velocity, and some road info
-        	vector<int> lanes{0, 1, 2}; // 0 = left lane, 1 = middle, 2 = right
-        	int num_lanes = lanes.size();
-          double ref_speed = 22.2;		// target speed (meters/second)
+          double SPEED_LIMIT = 22.0;
+          vector<int> lanes{0, 1, 2}; // 0 = left lane, 1 = middle, 2 = right
+          int num_lanes = lanes.size();
+          double ref_speed = SPEED_LIMIT;	// target speed (meters/second)
           double delta_t = 0.02;			// time step (seconds)
 
           // Sensing parameters
           double sense_limit = 150;			// ignore objects beyond this distance
-          double care_limit = 40; 			// do not take action beyond this dist
-          double safe_gap = 20;					//
-          double clearance = 8;
-          double rear_clearance = 5;
+          double care_limit = 50; 			// do not take action beyond this dist
+					double look_forward = 11;			// dist ahead to split "weigh" vs "don't hit"
+          double safe_gap = 20;					// space req'd to fit the car safely
+          double clearance = 8.0;
+          double rear_clearance = 7.0;
           double high_velocity = 1000;	// "clear road" allows infinite speed
 
           // Weighting parameters
           double app_offset = 9.0;			// "tailgating" closeness
-          double follow_comp = 7.0;			// following the "reported" speed of an
+          double follow_comp = 9.0;			// following the "reported" speed of an
           															// object in front never works
           															// compensate extra to prevent crashes
+          double pocket_comp = 8.0;			// when triggered, drops speed further
+          															// to "unstuck" the car from a pocket
+          															// in traffic
           double dist_weight = 1;				// relative importance, dist vs speed
           double speed_weight = 1.5;		// relative importance, speed vs dist
-          double stay_weight = 0.05;		// amount of bias for staying in lane
+          double stay_weight = 0.15;		// amount of bias for staying in lane
+          double block_thres = 2.0;			// overlap criteria for "lane blocked"
           double block_weight = 50;			// amount of bias against blocked lanes
 
         	// Map out objects around us - by lane
@@ -165,7 +172,7 @@ int main() {
               	// Log speed and position of closest object behind/beside us
               	// Include overlap (extra 3m) to double-count objects near
               	// our front corner
-              	if (obj_s < car_s + clearance + 3.0 &&
+              	if (obj_s < car_s + look_forward &&
               			obj_dist > near_obj_rear[l]) {
         					v_obj_rear[l] = sqrt(vx*vx + vy*vy);
               		near_obj_rear[l] = obj_dist;
@@ -176,6 +183,7 @@ int main() {
 
           // Diagnostic outputs
           cout << "---------------------------------------------------" << endl;
+          cout << "Old car_speed = " << car_speed << endl;
           cout << "    Nearest object (front) distances: ";
           for (double dist : near_obj_front) { cout << dist << ", "; }
           cout << endl << "    Nearest object (front) speeds: ";
@@ -218,8 +226,8 @@ int main() {
             	// reduced if the lane is blocked by an object.
             	weight = (near_obj_front[l] * dist_weight +
 												v_obj_front[l] * speed_weight) /
-												(1 - (l == old_lane) * stay_weight
-												+ (near_obj_rear[l] > -rear_clearance) * block_weight);
+												(1 - (l == old_lane) * stay_weight +
+												(near_obj_rear[l] > -block_thres) * block_weight);
 
             	weighted_pref.push_back(weight);
             }
@@ -258,15 +266,17 @@ int main() {
 
   						cout << "  obstruction amount: " << obstruction << endl;
 
-  						if (obstruction < clearance + rear_clearance + 2.0 &&
+  						if (near_obj_rear[next_lane] < clearance &&
+									obstruction < clearance + rear_clearance &&
   								obstruction > 0)
-  							ref_speed -= 0.45;	// stuck in a pocket, slow down
+  							ref_speed -= pocket_comp;	// stuck in a pocket, slow down
   						else
   							lane = next_lane;		// space behind object but no gap in front
   					}
 
     				// Final check - abort lane change if we do not have clearance
-    				if (near_obj_rear[next_lane] > -rear_clearance) {
+    				if (near_obj_rear[next_lane] < clearance && 
+								near_obj_rear[next_lane] > -rear_clearance) {
 
     					cout << "Cannot change lanes due to clearance" << endl;
 
@@ -281,8 +291,6 @@ int main() {
            * Step 2: with the lane preference determined, define a path of
            *   (x,y) points for the car to visit per .02 seconds
            */
-          int path_length = 50;					// Number of points to draw
-
           vector<double> next_x_vals;		// Containers to pass in msg
           vector<double> next_y_vals;
 
@@ -291,8 +299,12 @@ int main() {
           double ref_yaw = deg2rad(car_yaw);
 
           // Adjust speed based on the state of the car vs. target reference
-          car_speed /= 2.24; 		// stupid unit conversion
-          car_speed += 0.3 * ((car_speed < ref_speed - .3)
+          if (car_speed > SPEED_LIMIT) {
+            car_speed = SPEED_LIMIT;
+            cout << "\t\t\t SPEED LIMIT BROKEN" << endl;
+          }
+          else
+            car_speed += 0.3 * ((car_speed < ref_speed - .3)
           										 - (car_speed > ref_speed));
 
 					cout << "New car_speed = " << car_speed << endl;
@@ -302,7 +314,7 @@ int main() {
           vector<double> splinepts_y;
 
         	// Spline must be tangent to current travel path
-          if (previous_path_x.size() < 2) {
+          if (previous_path_x.size() < 5) {
           	// If there are not enough previous path points, we generate a
           	// "virtual" one based on current heading
           	splinepts_x.push_back(ref_x - cos(ref_yaw));
@@ -314,13 +326,15 @@ int main() {
           }
           else {
           	// If there are points left over from the previous path made,
-          	// keep the immediately upcoming 2 points in the new path
+          	// keep the immediately upcoming 3 points in the new path
           	// and reset our reference x and y
           	ref_x = previous_path_x[1];
           	ref_y = previous_path_y[1];
           	double ref_x_prev = previous_path_x[0];
           	double ref_y_prev = previous_path_y[0];
 
+            //next_x_vals.push_back(previous_path_x[0]);
+            //next_y_vals.push_back(previous_path_y[0]);
           	next_x_vals.push_back(ref_x_prev);
           	next_y_vals.push_back(ref_y_prev);
           	next_x_vals.push_back(ref_x);
@@ -331,12 +345,14 @@ int main() {
           	splinepts_y.push_back(ref_y_prev);
           	splinepts_x.push_back(ref_x);
           	splinepts_y.push_back(ref_y);
+          	splinepts_x.push_back(previous_path_x[4]);
+          	splinepts_y.push_back(previous_path_y[4]);
 
           	// Recompute car's heading
           	ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
           }
 
-          // Generate 3rd, 4th, and 5th points to draw the spline through
+          // Generate 4th, 5th, 6th points to draw the spline through
           vector<double> splinept3 = getXY(car_s+40, 2+4*lane,
           									map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> splinept4 = getXY(car_s+75, 2+4*lane,
@@ -368,7 +384,7 @@ int main() {
           s.set_points(splinepts_x, splinepts_y);
 
           // Calculate x-spacing along the spline to generate path points
-          double horizon_x = care_limit;
+          double horizon_x = 10;
           double horizon_y = s(horizon_x);
           double horizon_dist = sqrt(horizon_x*horizon_x + horizon_y*horizon_y);
         	double spacing = horizon_x / (horizon_dist / (delta_t * car_speed));
@@ -388,7 +404,7 @@ int main() {
           	next_x_vals.push_back(x_next);
           	next_y_vals.push_back(y_next);
 
-          }
+          }		  
           // END
 
 
