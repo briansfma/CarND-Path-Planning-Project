@@ -112,7 +112,7 @@ int main() {
           double SPEED_LIMIT = 22.0;
           vector<int> lanes{0, 1, 2}; // 0 = left lane, 1 = middle, 2 = right
           int num_lanes = lanes.size();
-          double ref_speed = SPEED_LIMIT;	// target speed (meters/second)
+          double ref_speed = 21.0;		// target speed (meters/second)
           double delta_t = 0.02;			// time step (seconds)
 
           // Sensing parameters
